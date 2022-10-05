@@ -1,4 +1,4 @@
-const socket = io.connect("http://localhost:3000");
+const socket = io.connect("http://175.178.1.249:3000");
 
 const CLIENT_RTC_EVENT = "CLIENT_RTC_EVENT";
 const SERVER_RTC_EVENT = "SERVER_RTC_EVENT";

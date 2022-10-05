@@ -4,16 +4,16 @@
  * Module dependencies.
  */
 
-var app = require('../app');
-var debug = require('debug')('e:server');
-var http = require('http');
+var app = require("../app");
+var debug = require("debug")("e:server");
+var http = require("http");
 
 /**
  * Get port from environment and store in Express.
  */
 
-var port = normalizePort(process.env.PORT || '3000');
-app.set('port', port);
+var port = normalizePort(process.env.PORT || "3000");
+app.set("port", port);
 
 /**
  * Create HTTP server.
@@ -22,32 +22,32 @@ app.set('port', port);
 var server = http.createServer(app);
 
 // 添加ws服务
-const io = require('socket.io')(server);
+const io = require("socket.io")(server, { cors: true });
 let connectionList = [];
 
-const CLIENT_RTC_EVENT = 'CLIENT_RTC_EVENT';
-const SERVER_RTC_EVENT = 'SERVER_RTC_EVENT';
+const CLIENT_RTC_EVENT = "CLIENT_RTC_EVENT";
+const SERVER_RTC_EVENT = "SERVER_RTC_EVENT";
 
-const CLIENT_USER_EVENT = 'CLIENT_USER_EVENT';
-const SERVER_USER_EVENT = 'SERVER_USER_EVENT';
+const CLIENT_USER_EVENT = "CLIENT_USER_EVENT";
+const SERVER_USER_EVENT = "SERVER_USER_EVENT";
 
-const CLIENT_USER_EVENT_LOGIN = 'CLIENT_USER_EVENT_LOGIN';
-const SERVER_USER_EVENT_UPDATE_USERS = 'SERVER_USER_EVENT_UPDATE_USERS';
+const CLIENT_USER_EVENT_LOGIN = "CLIENT_USER_EVENT_LOGIN";
+const SERVER_USER_EVENT_UPDATE_USERS = "SERVER_USER_EVENT_UPDATE_USERS";
 
 function getOnlineUser() {
   return connectionList
-  .filter(item => {
-    return item.userName !== '';
-  })
-  .map(item => {
-    return {
-      userName: item.userName
-    };
-  });
+    .filter((item) => {
+      return item.userName !== "";
+    })
+    .map((item) => {
+      return {
+        userName: item.userName,
+      };
+    });
 }
 
 function setUserName(connection, userName) {
-  connectionList.forEach(item => {
+  connectionList.forEach((item) => {
     if (item.connection.id === connection.id) {
       item.userName = userName;
     }
@@ -55,39 +55,41 @@ function setUserName(connection, userName) {
 }
 
 function updateUsers(connection) {
-  connection.emit(SERVER_USER_EVENT, { type: SERVER_USER_EVENT_UPDATE_USERS, payload: getOnlineUser()});  
+  connection.emit(SERVER_USER_EVENT, {
+    type: SERVER_USER_EVENT_UPDATE_USERS,
+    payload: getOnlineUser(),
+  });
 }
 
-io.on('connection', function (connection) {
-
+io.on("connection", function (connection) {
   connectionList.push({
     connection: connection,
-    userName: ''
+    userName: "",
   });
-  
+
   // 连接上的用户，推送在线用户列表
   // connection.emit(SERVER_USER_EVENT, { type: SERVER_USER_EVENT_UPDATE_USERS, payload: getOnlineUser()});
   updateUsers(connection);
 
-  connection.on(CLIENT_USER_EVENT, function(jsonString) {
+  connection.on(CLIENT_USER_EVENT, function (jsonString) {
     const msg = JSON.parse(jsonString);
-    const {type, payload} = msg;
+    const { type, payload } = msg;
 
     if (type === CLIENT_USER_EVENT_LOGIN) {
       setUserName(connection, payload.loginName);
-      connectionList.forEach(item => {
+      connectionList.forEach((item) => {
         // item.connection.emit(SERVER_USER_EVENT, { type: SERVER_USER_EVENT_UPDATE_USERS, payload: getOnlineUser()});
         updateUsers(item.connection);
       });
     }
   });
 
-  connection.on(CLIENT_RTC_EVENT, function(jsonString) {
+  connection.on(CLIENT_RTC_EVENT, function (jsonString) {
     const msg = JSON.parse(jsonString);
-    const {payload} = msg;
+    const { payload } = msg;
     const target = payload.target;
 
-    const targetConn = connectionList.find(item => {
+    const targetConn = connectionList.find((item) => {
       return item.userName === target;
     });
     if (targetConn) {
@@ -95,14 +97,14 @@ io.on('connection', function (connection) {
     }
   });
 
-  connection.on('disconnect', function () {
-    connectionList = connectionList.filter(item => {
+  connection.on("disconnect", function () {
+    connectionList = connectionList.filter((item) => {
       return item.connection.id !== connection.id;
     });
-    connectionList.forEach(item => {
+    connectionList.forEach((item) => {
       // item.connection.emit(SERVER_USER_EVENT, { type: SERVER_USER_EVENT_UPDATE_USERS, payload: getOnlineUser()});
       updateUsers(item.connection);
-    });    
+    });
   });
 });
 
@@ -111,8 +113,8 @@ io.on('connection', function (connection) {
  */
 
 server.listen(port);
-server.on('error', onError);
-server.on('listening', onListening);
+server.on("error", onError);
+server.on("listening", onListening);
 
 /**
  * Normalize a port into a number, string, or false.
@@ -139,22 +141,20 @@ function normalizePort(val) {
  */
 
 function onError(error) {
-  if (error.syscall !== 'listen') {
+  if (error.syscall !== "listen") {
     throw error;
   }
 
-  var bind = typeof port === 'string'
-    ? 'Pipe ' + port
-    : 'Port ' + port;
+  var bind = typeof port === "string" ? "Pipe " + port : "Port " + port;
 
   // handle specific listen errors with friendly messages
   switch (error.code) {
-    case 'EACCES':
-      console.error(bind + ' requires elevated privileges');
+    case "EACCES":
+      console.error(bind + " requires elevated privileges");
       process.exit(1);
       break;
-    case 'EADDRINUSE':
-      console.error(bind + ' is already in use');
+    case "EADDRINUSE":
+      console.error(bind + " is already in use");
       process.exit(1);
       break;
     default:
@@ -168,8 +168,6 @@ function onError(error) {
 
 function onListening() {
   var addr = server.address();
-  var bind = typeof addr === 'string'
-    ? 'pipe ' + addr
-    : 'port ' + addr.port;
-  debug('Listening on ' + bind);
+  var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
+  debug("Listening on " + bind);
 }

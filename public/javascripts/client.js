@@ -1,4 +1,4 @@
-const socket = io.connect("http://175.178.1.249:3000");
+const socket = io.connect(location.origin);
 
 const CLIENT_RTC_EVENT = "CLIENT_RTC_EVENT";
 const SERVER_RTC_EVENT = "SERVER_RTC_EVENT";
@@ -153,9 +153,9 @@ async function startVideoTalk() {
 function createPeerConnection() {
   const iceConfig = {
     iceServers: [
-      { url: "stun:175.178.1.249:3478" },
+      { url: `stun:${location.hostname}:3478` },
       {
-        url: "turn:175.178.1.249:3478",
+        url: `turn:${location.hostname}:3478`,
         username: "1664897233",
         credential: "qswFktuRYpu6pUzZ81rNDmNigmU=",
       },

@@ -174,7 +174,7 @@ function createPeerConnection() {
 
   // p2p聊天、发送文件
   pc.ondatachannel = onsenddatachannel;
-  sendChannel = pc.createDataChannel("sendChannel");
+  sendChannel = pc.createDataChannel("sendChannel", { ordered: true });
   sendChannel.onopen = ondatachannelopen;
   sendChannel.onclose = ondatachannelclose;
 
@@ -330,27 +330,42 @@ function onsenddatachannel(evt) {
 
 // 远端收到消息
 function onReceiveMessageCallback(evt) {
-  document.getElementById("chat").innerHTML +=
-    "<br/>" + "【收到p2p消息】" + JSON.stringify(evt.data);
+  const data = JSON.parse(evt.data);
 
   // 判断是请求资源文件请求
-  if (evt.data?.cmd == "request_source") {
+  if (data?.cmd == "request_source") {
     // 去本地sw的cache中查找
-    navigator.serviceWorker.controller.postMessage(evt.data);
+    navigator.serviceWorker.controller.postMessage(data);
+  }
+  // 收到远端回复
+  else if (data?.cmd == "response_source") {
+    navigator.serviceWorker.controller.postMessage(data);
+  }
+  // 普通聊天
+  else {
+    document.getElementById("chat").innerHTML +=
+      "<br/>" + "【收到p2p消息】" + evt.data;
   }
 }
 function onSendP2PMsg() {
   const value = document.getElementById("input-p2p-msg").value;
-  sendChannel.send(value);
+  sendChannel.send(JSON.stringify({ data: value }));
   document.getElementById("chat").innerHTML +=
     "<br/>" + "【发送p2p消息】" + value;
 }
 // 发送消息给远端，请求资源文件
 function onSendP2PRequestSource(data) {
-  sendChannel.send(data);
+  if (!sendChannel) return;
+  sendChannel.send(JSON.stringify(data));
   console.log(`发起远端请求：${JSON.stringify(data)}`);
 }
 function onSendP2PResponseSource(data) {
-  sendChannel.send(data);
-  console.log(`返回远端请求：${JSON.stringify(data)}`);
+  if (!sendChannel) return;
+  sendChannel.send(JSON.stringify(data));
+  console.log(`返回远端回复：${JSON.stringify(data)}`);
 }
+document.getElementById("btn-send-img").addEventListener("click", function () {
+  document
+    .getElementById("image")
+    .setAttribute("src", document.getElementById("input-img-url").value);
+});

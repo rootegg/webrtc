@@ -86,7 +86,7 @@ async function handleReceiveOffer(msg) {
   });
 
   // 开启本地视频
-  //   Promise.resolve().then(handleTrackVideo);
+  Promise.resolve().then(handleTrackVideo);
 }
 
 async function handleTrackVideo() {
@@ -147,7 +147,7 @@ async function startVideoTalk() {
   createPeerConnection();
 
   // 开启本地视频
-  //   Promise.resolve().then(handleTrackVideo);
+  Promise.resolve().then(handleTrackVideo);
 }
 
 function createPeerConnection() {

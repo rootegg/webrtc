@@ -35,6 +35,12 @@
       <div class="login-users-container">
         <ul id="login-users"></ul>
       </div>
+      <br />
+
+      <div>
+        请求图片地址：<input id="input-p2p-msg" />
+        <button id="btn-send-p2p-msg">请求</button>先检查远端是否存在
+      </div>
 
       <br />
       <div class="video-container">
@@ -53,5 +59,22 @@
     <div id="console"></div>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/javascripts/client.js"></script>
+    <script>
+      window.addEventListener("load", function () {
+        if ("serviceWorker" in navigator) {
+          navigator.serviceWorker.register("/sw.js");
+          navigator.serviceWorker.addEventListener("message", function (event) {
+            console.log("收到消息sw->html", event.data);
+            if (event.data?.cmd == "request_source") {
+              // 发起远端请求
+              onSendP2PRequestSource(event.data);
+            } else if (event.data?.cmd == "response_source") {
+              // 本地sw检查cache返回
+              onSendP2PResponseSource(event.data);
+            }
+          });
+        }
+      });
+    </script>
   </body>
 </html>

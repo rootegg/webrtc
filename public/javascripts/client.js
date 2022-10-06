@@ -153,9 +153,9 @@ async function startVideoTalk() {
 function createPeerConnection() {
   const iceConfig = {
     iceServers: [
-      { url: `stun:${location.hostname}:3478` },
+      { url: `stun:175.178.1.249:3478` },
       {
-        url: `turn:${location.hostname}:3478`,
+        url: `turn:175.178.1.249:3478`,
         username: "1664897233",
         credential: "qswFktuRYpu6pUzZ81rNDmNigmU=",
       },
@@ -327,13 +327,30 @@ function onsenddatachannel(evt) {
   receiveChannel.onopen = ondatachannelopen;
   receiveChannel.onclose = ondatachannelclose;
 }
+
+// 远端收到消息
 function onReceiveMessageCallback(evt) {
   document.getElementById("chat").innerHTML +=
-    "<br/>" + "【收到p2p消息】" + evt.data;
+    "<br/>" + "【收到p2p消息】" + JSON.stringify(evt.data);
+
+  // 判断是请求资源文件请求
+  if (evt.data?.cmd == "request_source") {
+    // 去本地sw的cache中查找
+    navigator.serviceWorker.controller.postMessage(evt.data);
+  }
 }
 function onSendP2PMsg() {
   const value = document.getElementById("input-p2p-msg").value;
   sendChannel.send(value);
   document.getElementById("chat").innerHTML +=
     "<br/>" + "【发送p2p消息】" + value;
+}
+// 发送消息给远端，请求资源文件
+function onSendP2PRequestSource(data) {
+  sendChannel.send(data);
+  console.log(`发起远端请求：${JSON.stringify(data)}`);
+}
+function onSendP2PResponseSource(data) {
+  sendChannel.send(data);
+  console.log(`返回远端请求：${JSON.stringify(data)}`);
 }

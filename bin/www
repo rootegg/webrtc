@@ -7,6 +7,8 @@
 var app = require("../app");
 var debug = require("debug")("e:server");
 var http = require("http");
+const uuid = require("uuid");
+const lodash = require("lodash");
 
 /**
  * Get port from environment and store in Express.
@@ -34,6 +36,9 @@ const SERVER_USER_EVENT = "SERVER_USER_EVENT";
 const CLIENT_USER_EVENT_LOGIN = "CLIENT_USER_EVENT_LOGIN";
 const SERVER_USER_EVENT_UPDATE_USERS = "SERVER_USER_EVENT_UPDATE_USERS";
 
+const SIGNALING_CANDIDATE = "SIGNALING_CANDIDATE";
+const SERVER_USER_EVENT_SET_USERNAME = "SERVER_USER_EVENT_SET_USERNAME";
+
 function getOnlineUser() {
   return connectionList
     .filter((item) => {
@@ -54,40 +59,55 @@ function setUserName(connection, userName) {
   });
 }
 
-function updateUsers(connection) {
+function updateUsers(connection, from = connection.user.userName) {
+  console.log("当前用户updateUsers：" + from);
   connection.emit(SERVER_USER_EVENT, {
     type: SERVER_USER_EVENT_UPDATE_USERS,
+    from: from,
     payload: getOnlineUser(),
   });
 }
 
 io.on("connection", function (connection) {
-  connectionList.push({
+  const userName = uuid.v4();
+  console.log("用户进入：" + userName);
+  connection.user = { userName: userName };
+  connectionList.unshift({
     connection: connection,
-    userName: "",
+    userName: userName,
   });
-
+  connection.emit(SERVER_USER_EVENT, {
+    type: SERVER_USER_EVENT_SET_USERNAME,
+    payload: { userName: userName },
+  });
   // 连接上的用户，推送在线用户列表
   // connection.emit(SERVER_USER_EVENT, { type: SERVER_USER_EVENT_UPDATE_USERS, payload: getOnlineUser()});
-  updateUsers(connection);
+  // updateUsers(connection);
 
   connection.on(CLIENT_USER_EVENT, function (jsonString) {
     const msg = JSON.parse(jsonString);
     const { type, payload } = msg;
 
     if (type === CLIENT_USER_EVENT_LOGIN) {
-      setUserName(connection, payload.loginName);
+      // setUserName(connection, payload.loginName);
       connectionList.forEach((item) => {
         // item.connection.emit(SERVER_USER_EVENT, { type: SERVER_USER_EVENT_UPDATE_USERS, payload: getOnlineUser()});
-        updateUsers(item.connection);
+        updateUsers(item.connection, payload);
       });
     }
   });
 
   connection.on(CLIENT_RTC_EVENT, function (jsonString) {
     const msg = JSON.parse(jsonString);
-    const { payload } = msg;
-    const target = payload.target;
+    const { payload, type } = msg;
+    const { from, target } = payload;
+
+    // if (
+    //   type == SIGNALING_CANDIDATE &&
+    //   payload.candidate.candidate.indexOf("typ relay") > -1
+    // ) {
+    //   return console.log(`中断 candidate：${from} -> ${target} typ relay`);
+    // }
 
     const targetConn = connectionList.find((item) => {
       return item.userName === target;
@@ -98,6 +118,7 @@ io.on("connection", function (connection) {
   });
 
   connection.on("disconnect", function () {
+    console.log("用户离开：" + connection.user.userName);
     connectionList = connectionList.filter((item) => {
       return item.connection.id !== connection.id;
     });

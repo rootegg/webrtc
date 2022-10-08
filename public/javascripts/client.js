@@ -13,7 +13,9 @@ const SERVER_USER_EVENT_UPDATE_USERS = "SERVER_USER_EVENT_UPDATE_USERS";
 const SIGNALING_OFFER = "SIGNALING_OFFER";
 const SIGNALING_ANSWER = "SIGNALING_ANSWER";
 const SIGNALING_CANDIDATE = "SIGNALING_CANDIDATE";
+const SERVER_USER_EVENT_SET_USERNAME = "SERVER_USER_EVENT_SET_USERNAME";
 
+let avaliableUsernameList = []; // 当前可以用用户列表
 let remoteUser = ""; // 远端用户
 let localUser = ""; // 本地登录用户
 
@@ -39,11 +41,14 @@ socket.on("error", function (errorMessage) {
 
 socket.on(SERVER_USER_EVENT, function (msg) {
   const type = msg.type;
-  const payload = msg.payload;
+  const { from, payload } = msg;
 
   switch (type) {
+    case SERVER_USER_EVENT_SET_USERNAME:
+      initJoin(payload);
+      break;
     case SERVER_USER_EVENT_UPDATE_USERS:
-      updateUserList(payload);
+      updateUserList(from, payload);
       break;
   }
   log(`[${SERVER_USER_EVENT}] [${type}], ${JSON.stringify(msg)}`);
@@ -64,6 +69,11 @@ socket.on(SERVER_RTC_EVENT, function (msg) {
       break;
   }
 });
+
+function initJoin(payload) {
+  localUser = payload.userName;
+  init();
+}
 
 async function handleReceiveOffer(msg) {
   log(`receive remote description from ${msg.payload.from}`);
@@ -116,7 +126,25 @@ async function handleReceiveAnswer(msg) {
 
 async function handleReceiveCandidate(msg) {
   log(`receive candidate from ${msg.payload.from}`);
+  console.log(`receive candidate from`, msg);
   await pc.addIceCandidate(msg.payload.candidate); // TODO 错误处理
+  // if (msg.payload.candidate.candidate.indexOf("typ relay") > -1) {
+  //   // relay 表示要通过turn服务器，则host和srflx已经失败，则重试下一个远端
+  //   console.log(
+  //     `同用户${msg.payload.from}尝试完host和srflx都失败，开始尝试与下个用户p2p连接`
+  //   );
+  //   closePeerConnection();
+  //   failUsernameList.push(msg.payload.from);
+  //   createPeerConnection();
+  // } else {
+  //   // 允许 host srflx 通过
+  //   await pc.addIceCandidate(msg.payload.candidate); // TODO 错误处理
+  // }
+}
+
+function closePeerConnection() {
+  pc?.close?.();
+  pc = null;
 }
 
 /**
@@ -135,6 +163,7 @@ function sendRTCEvent(msg) {
   socket.emit(CLIENT_RTC_EVENT, JSON.stringify(msg));
 }
 
+const failUsernameList = []; //失败过的远端
 let pc = null;
 
 /**
@@ -151,6 +180,19 @@ async function startVideoTalk() {
 }
 
 function createPeerConnection() {
+  // 断开可能有的连接
+  closePeerConnection();
+  // 重新找对象
+  remoteUser = avaliableUsernameList
+    .filter((userName) => !failUsernameList.includes(userName))
+    .find((userName) => userName);
+
+  if (!remoteUser) {
+    return console.log(
+      "已尝试所有在线用户，没有可p2p连接的通道，等待新用户加入"
+    );
+  }
+
   const iceConfig = {
     iceServers: [
       { url: `stun:175.178.1.249:3478` },
@@ -160,7 +202,7 @@ function createPeerConnection() {
         credential: "qswFktuRYpu6pUzZ81rNDmNigmU=",
       },
     ],
-    sdpSemantics: "plan-b", // 用域名就不用这个参数
+    // sdpSemantics: "plan-b", // 用域名就不用这个参数
   };
 
   pc = new RTCPeerConnection(iceConfig);
@@ -200,6 +242,9 @@ async function onnegotiationneeded() {
 function onicecandidate(evt) {
   if (evt.candidate) {
     log(`onicecandidate.`);
+    console.log("onicecandidate", evt.candidate);
+    // 不要relay，只保留 host和srflx
+    // if (evt.candidate.candidate.indexOf("typ relay") > -1) return;
 
     sendRTCEvent({
       type: SIGNALING_CANDIDATE,
@@ -263,51 +308,41 @@ async function handleUserClick(evt) {
  * 更新用户列表
  * @param {Array} users 用户列表，比如 [{name: '小明', name: '小强'}]
  */
-function updateUserList(users) {
+function updateUserList(from, users) {
   const fragment = document.createDocumentFragment();
   const userList = document.getElementById("login-users");
   userList.innerHTML = "";
 
   users.forEach((user) => {
     const li = document.createElement("li");
-    li.innerHTML = user.userName;
+    li.innerHTML =
+      (user.userName == localUser
+        ? "<span class='li-myself'>【自己】</span>"
+        : "") + user.userName;
     li.setAttribute("data-name", user.userName);
-    li.addEventListener("click", handleUserClick);
+    // li.addEventListener("click", handleUserClick);
     fragment.appendChild(li);
   });
+  avaliableUsernameList = users
+    .filter((it) => it.userName != localUser)
+    .map((it) => it.userName);
 
   userList.appendChild(fragment);
 }
 
-/**
- * 用户登录
- * @param {String} loginName 用户名
- */
-function login(loginName) {
-  localUser = loginName;
+function init() {
   sendUserEvent({
     type: CLIENT_USER_EVENT_LOGIN,
-    payload: {
-      loginName: loginName,
-    },
+    payload: localUser,
   });
-}
 
-// 处理登录
-function handleLogin(evt) {
-  let loginName = document.getElementById("login-name").value.trim();
-  if (loginName === "") {
-    alert("用户名为空！");
-    return;
-  }
-  login(loginName);
+  setTimeout(() => {
+    // 远程列表 没有我的远程对象了，说明已经下线，断开连接，重新连
+    if (!avaliableUsernameList.find((userName) => userName == remoteUser)) {
+      createPeerConnection();
+    }
+  }, 2000);
 }
-
-function init() {
-  document.getElementById("login-btn").addEventListener("click", handleLogin);
-}
-
-init();
 
 // dataChannel
 document
@@ -349,22 +384,24 @@ function onReceiveMessageCallback(evt) {
 }
 function onSendP2PMsg() {
   const value = document.getElementById("input-p2p-msg").value;
+  if (sendChannel?.readyState != "open") return;
   sendChannel.send(JSON.stringify({ data: value }));
   document.getElementById("chat").innerHTML +=
     "<br/>" + "【发送p2p消息】" + value;
 }
 // 发送消息给远端，请求资源文件
 function onSendP2PRequestSource(data) {
-  if (!sendChannel) return;
+  if (sendChannel?.readyState != "open") return;
   sendChannel.send(JSON.stringify(data));
   console.log(`发起远端请求：${JSON.stringify(data)}`);
 }
 function onSendP2PResponseSource(data) {
-  if (!sendChannel) return;
+  if (sendChannel?.readyState != "open") return;
   sendChannel.send(JSON.stringify(data));
   console.log(`返回远端回复：${JSON.stringify(data)}`);
 }
 document.getElementById("btn-send-img").addEventListener("click", function () {
+  document.getElementById("image").setAttribute("src", "");
   document
     .getElementById("image")
     .setAttribute("src", document.getElementById("input-img-url").value);
